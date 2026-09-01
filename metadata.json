@@ -1,0 +1,13 @@
+{
+  "name": "AASHRAYA GANITH",
+  "version": "0.7.0",
+  "description": "Climate-adaptive shelter intelligence MVP for human and livestock shelters.",
+  "visualFocus": [
+    "interactive 3D design comparison",
+    "thermal response visualization",
+    "airflow visualization",
+    "manual climate override",
+    "current-location city/state display"
+  ],
+  "safetyBoundary": "Preliminary decision support; professional validation required."
+}
