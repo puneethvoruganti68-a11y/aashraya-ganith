@@ -13,7 +13,7 @@ import pandas as pd
 # =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODEL_DIR = PROJECT_ROOT.parent / "datasets" / "models"
+MODEL_DIR = PROJECT_ROOT / "datasets" / "models"
 
 TEMP_MODEL_PATH = MODEL_DIR / "thermal_temperature_xgboost_best.pkl"
 HUMIDITY_MODEL_PATH = MODEL_DIR / "thermal_humidity_xgboost_best.pkl"
