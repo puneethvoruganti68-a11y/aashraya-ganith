@@ -24,6 +24,34 @@ type Inputs = {
   wallMaterial: string; roofMaterial: string; insulationMaterial: string; floorMaterial: string;
 };
 
+const citySuggestions = [
+  { city: 'Delhi', state: 'Delhi' },
+  { city: 'Hyderabad', state: 'Telangana' },
+  { city: 'Mumbai', state: 'Maharashtra' },
+  { city: 'Bengaluru', state: 'Karnataka' },
+  { city: 'Chennai', state: 'Tamil Nadu' },
+  { city: 'Kolkata', state: 'West Bengal' },
+  { city: 'Pune', state: 'Maharashtra' },
+  { city: 'Ahmedabad', state: 'Gujarat' },
+  { city: 'Jaipur', state: 'Rajasthan' },
+  { city: 'Jaisalmer', state: 'Rajasthan' },
+  { city: 'Leh', state: 'Ladakh' },
+  { city: 'Visakhapatnam', state: 'Andhra Pradesh' },
+  { city: 'Lucknow', state: 'Uttar Pradesh' },
+  { city: 'Chandigarh', state: 'Chandigarh' },
+  { city: 'Bhopal', state: 'Madhya Pradesh' },
+  { city: 'Indore', state: 'Madhya Pradesh' },
+  { city: 'Nagpur', state: 'Maharashtra' },
+  { city: 'Surat', state: 'Gujarat' },
+  { city: 'Kochi', state: 'Kerala' },
+  { city: 'Bhubaneswar', state: 'Odisha' },
+  { city: 'Patna', state: 'Bihar' },
+  { city: 'Ranchi', state: 'Jharkhand' },
+  { city: 'Guwahati', state: 'Assam' },
+  { city: 'Srinagar', state: 'Jammu and Kashmir' },
+  { city: 'Dehradun', state: 'Uttarakhand' },
+  { city: 'Shimla', state: 'Himachal Pradesh' }
+];
 const climatePresets = [
   {id:'thar', name:'Thar Desert', type:'Hot & dry', city:'Jaisalmer', state:'Rajasthan', temp:42, humidity:22, wind:15, solar:950},
   {id:'ladakh', name:'Ladakh High-Altitude', type:'Cold & dry', city:'Leh', state:'Ladakh', temp:17, humidity:28, wind:12, solar:820},
@@ -239,6 +267,7 @@ function App(){
     setWeatherLoading(true);
     setWeatherStatus(`Fetching real climate data for ${city}...`);
     setWeatherSource('');
+    
 
     try{
       const searchName = state ? `${city}, ${state}, India` : `${city}, India`;
@@ -631,6 +660,15 @@ setRealDailySolarEnergy(realSolarEnergyPerM2);
     selectedHour={selectedHour}
     onHourChange={setSelectedHour}
   />
+
+  <AnalysisSide
+    input={i}
+    user={user}
+    ai={ai}
+    mlPrediction={mlPrediction}
+    mlLoading={mlLoading}
+    mlError={mlError}
+  />
 </div>
 
 <div className="resultsGrid resultsGridLarge"> 
@@ -651,7 +689,9 @@ setRealDailySolarEnergy(realSolarEnergyPerM2);
 
     <footer><span>CREATED BY BLUE STARS</span></footer>
 
-    <AnimatePresence>{detailsOpen&&<ProjectModal input={i} update={update} onClose={()=>setDetailsOpen(false)} onOpenMaterials={()=>setMaterialsOpen(true)} onUseLocation={useCurrentLocation} locationStatus={locationStatus} onContinue={async()=>{if(!materialsConfigured)return; const raw=i.location.trim(); const parts=raw.split(',').map(x=>x.trim()).filter(Boolean); const city=parts[0]||i.city; const state=parts.slice(1).join(', ')||i.state; setDetailsOpen(false); setStep('climate'); if(city) await loadRealClimate(city,state);}} canContinue={materialsConfigured}/>}</AnimatePresence>
+    <AnimatePresence>{detailsOpen&&<ProjectModal input={i} update={update} onClose={()=>setDetailsOpen(false)} onOpenMaterials={()=>setMaterialsOpen(true)} onUseLocation={useCurrentLocation} locationStatus={locationStatus} onContinue={async()=>{if(!materialsConfigured)return; const raw=i.location.trim(); const parts=raw.split(',').map(x=>x.trim()).filter(Boolean); const city=parts[0]||i.city; const state=parts.slice(1).join(', ')||i.state; setDetailsOpen(false); setStep('climate'); if(city) await loadRealClimate(city,state);}} canContinue={materialsConfigured}
+onSelectCity={(city,state)=>loadRealClimate(city,state)}
+/>}</AnimatePresence>
     <AnimatePresence>{materialsOpen&&<MaterialsModal input={i} update={update} onClose={()=>setMaterialsOpen(false)} onSave={()=>setMaterialsConfigured(true)}/>}</AnimatePresence>
     <AnimatePresence>{climateOpen&&<ClimateModal input={i} update={update} onClose={()=>setClimateOpen(false)} onApply={()=>{setRealHourlyTemps([]);setRealHourlySolar([]);setRealDailySolarEnergy(null);setCurrentTemperature(i.outdoorTemp);setCurrentSolarRadiation(i.solar);setClimateOpen(false);setWeatherSource('Manual field measurements');setWeatherStatus('✓ Manual climate profile applied. Live weather is paused until a location is loaded again.');setLocationStatus('✓ Manual climate profile applied to the model.')}}/>}</AnimatePresence>
   </div>
@@ -1103,7 +1143,27 @@ function AnalysisVisual({mode,input,user,ai,hourly,realDailySolarEnergy,selected
 
 function ResultPanel({title,icon,items}:{title:string;icon:React.ReactNode;items:string[][]}){return <div className="resultPanel"><div className="resultHead"><span>{icon}</span><b>{title}</b></div>{items.map(([a,b])=><div className="resultRow" key={a}><span>{a}</span><strong>{b}</strong></div>)}</div>}
 
-function ProjectModal({input,update,onClose,onOpenMaterials,onUseLocation,locationStatus,onContinue,canContinue}:{input:Inputs;update:(p:Partial<Inputs>)=>void;onClose:()=>void;onOpenMaterials:()=>void;onUseLocation:()=>void;locationStatus:string;onContinue:()=>void;canContinue:boolean}){
+function ProjectModal({
+  input,
+  update,
+  onClose,
+  onOpenMaterials,
+  onUseLocation,
+  locationStatus,
+  onContinue,
+  canContinue,
+  onSelectCity
+}:{
+  input:Inputs;
+  update:(p:Partial<Inputs>)=>void;
+  onClose:()=>void;
+  onOpenMaterials:()=>void;
+  onUseLocation:()=>void;
+  locationStatus:string;
+  onContinue:()=>void;
+  canContinue:boolean;
+  onSelectCity:(city:string,state:string)=>void;
+}){
   return <motion.div className="modalBackdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><motion.div className="modal large" initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:20}}>
     <div className="modalHead"><div><span className="eyebrow"><SlidersHorizontal size={14}/> COMPLETE PROJECT INPUT</span><h3>Tell us exactly what you are designing.</h3><p>These values drive geometry, climate analysis, thermal prediction, solar energy, heat flow, material selection and cost.</p></div><button onClick={onClose}><X/></button></div>
     <div className="targetSwitch"><button className={input.target==='human'?'selected':''} onClick={()=>update({target:'human',purpose:'Rural home'})}><Users/>Human shelter<span>People / household / community</span></button><button className={input.target==='livestock'?'selected':''} onClick={()=>update({target:'livestock',purpose:'Livestock shelter'})}><PawPrint/>Livestock shelter<span>Animal count + thermal welfare</span></button></div>
@@ -1119,7 +1179,39 @@ function ProjectModal({input,update,onClose,onOpenMaterials,onUseLocation,locati
       <Field label="Roof pitch"><div className="inputSuffix"><input type="number" min="5" max="45" value={input.roofPitch} onChange={e=>update({roofPitch:Number(e.target.value)})}/><span>°</span></div></Field>
     </div>
     <button className="materialLauncher requiredLauncher" onClick={onOpenMaterials}><span><Factory/></span><div><b>Material library & envelope <em>REQUIRED BEFORE CONTINUE</em></b><small>Choose wall, roof, insulation and floor materials from the built-in thermal-property library.</small></div><ArrowRight/></button>
-    <div className="locationBox"><div className="locationTitle"><MapPin/><div><b>Where is the shelter?</b><small>Location determines the climate context.</small></div><button onClick={onUseLocation}><LocateFixed/> Use Current Location</button></div><div className="locationInput"><input value={input.location} onChange={e=>update({location:e.target.value})} placeholder="City, State"/><span>Detected: {input.city}, {input.state}</span></div>{locationStatus&&<small className="statusNote">{locationStatus}</small>}</div>
+    <div className="locationBox">
+  <div className="locationTitle">
+    <MapPin/>
+    <div>
+      <b>Where is the shelter?</b>
+      <small>Location determines the climate context.</small>
+    </div>
+
+    <button onClick={onUseLocation}>
+      <LocateFixed/> Use Current Location
+    </button>
+  </div>
+
+  <div className="locationInput">
+    <CityAutocomplete
+      value={input.location}
+      city={input.city}
+      state={input.state}
+      update={update}
+      onSelectCity={onSelectCity}
+    />
+
+    <span>
+      Detected: {input.city || '—'}, {input.state || '—'}
+    </span>
+  </div>
+
+  {locationStatus&&(
+    <small className="statusNote">
+      {locationStatus}
+    </small>
+  )}
+</div>
     <div className="modalActions"><button className="ghostBtn" onClick={onClose}>Cancel</button><button className="primaryBtn" disabled={!canContinue} onClick={onContinue}>{canContinue?'Continue to climate':'Select materials to continue'} <ArrowRight/></button></div>
   </motion.div></motion.div>
 }
@@ -1184,6 +1276,199 @@ function ClimateModal({input,update,onClose,onApply}:{input:Inputs;update:(p:Par
   </motion.div></motion.div>
 }
 
-function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}</label>}
+function Field({label,children}:{label:string;children:React.ReactNode}){
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function CityAutocomplete({
+  value,
+  city,
+  state,
+  update,
+  onSelectCity
+}:{
+  value:string;
+  city:string;
+  state:string;
+  update:(patch:Partial<Inputs>)=>void;
+  onSelectCity:(city:string,state:string)=>void;
+}) {
+  const [open,setOpen]=useState(false);
+  const [highlighted,setHighlighted]=useState(0);
+
+  const query=value.trim().toLowerCase();
+
+  const suggestions = query.length === 0
+    ? []
+    : citySuggestions
+        .filter(item =>
+          `${item.city} ${item.state}`.toLowerCase().includes(query)
+        )
+        .sort((a,b)=>{
+          const aCity=a.city.toLowerCase();
+          const bCity=b.city.toLowerCase();
+
+          const aStarts=aCity.startsWith(query) ? 0 : 1;
+          const bStarts=bCity.startsWith(query) ? 0 : 1;
+
+          return aStarts-bStarts;
+        })
+        .slice(0,5);
+
+  useEffect(()=>{
+    setHighlighted(0);
+  },[value]);
+
+  useEffect(()=>{
+    const close=()=>{
+      setOpen(false);
+    };
+
+    window.addEventListener('click',close);
+
+    return()=>{
+      window.removeEventListener('click',close);
+    };
+  },[]);
+
+  const selectCity=(item:{city:string;state:string})=>{
+    update({
+      location:`${item.city}, ${item.state}`,
+      city:item.city,
+      state:item.state
+    });
+
+    setOpen(false);
+
+    onSelectCity(item.city,item.state);
+  };
+
+  const handleKeyDown=(e:React.KeyboardEvent<HTMLInputElement>)=>{
+    if(!suggestions.length) return;
+
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted(prev =>
+        prev < suggestions.length-1 ? prev+1 : 0
+      );
+    }
+
+    if(e.key==='ArrowUp'){
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted(prev =>
+        prev > 0 ? prev-1 : suggestions.length-1
+      );
+    }
+
+    if(e.key==='Enter'){
+      e.preventDefault();
+
+      const selected=suggestions[highlighted];
+
+      if(selected){
+        selectCity(selected);
+      }
+    }
+
+    if(e.key==='Escape'){
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div
+      className="cityAutocomplete"
+      onClick={e=>e.stopPropagation()}
+      style={{
+        position:'relative',
+        flex:1
+      }}
+    >
+      <input
+        value={value}
+        onFocus={()=>{
+          if(value.trim()) setOpen(true);
+        }}
+        onChange={e=>{
+          update({
+            location:e.target.value,
+            city:'',
+            state:''
+          });
+          setOpen(true);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder="City, State"
+        autoComplete="off"
+      />
+
+      {open && suggestions.length>0 && (
+        <div
+          style={{
+            position:'absolute',
+            top:'calc(100% + 8px)',
+            left:0,
+            right:0,
+            zIndex:1000,
+            background:'#ffffff',
+            border:'1px solid #d5e3df',
+            borderRadius:'14px',
+            boxShadow:'0 12px 30px rgba(20,60,50,.14)',
+            overflow:'hidden'
+          }}
+        >
+          {suggestions.map((item,index)=>(
+            <button
+              key={`${item.city}-${item.state}`}
+              type="button"
+              onMouseDown={e=>{
+                e.preventDefault();
+                selectCity(item);
+              }}
+              style={{
+                width:'100%',
+                border:0,
+                background:index===highlighted
+                  ? '#eef8f5'
+                  : '#ffffff',
+                padding:'13px 16px',
+                textAlign:'left',
+                cursor:'pointer',
+                display:'flex',
+                flexDirection:'column',
+                gap:'3px'
+              }}
+            >
+              <strong
+                style={{
+                  color:'#16483f',
+                  fontSize:'15px'
+                }}
+              >
+                {item.city}
+              </strong>
+
+              <span
+                style={{
+                  color:'#78918c',
+                  fontSize:'13px'
+                }}
+              >
+                {item.state}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default App;
