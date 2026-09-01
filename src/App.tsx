@@ -278,7 +278,7 @@ function App(){
       if(!geo.results?.length) throw new Error(`Could not find ${city}, India.`);
       const place = geo.results[0];
 
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation&forecast_days=2&timezone=auto`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation&forecast_days=2&wind_speed_unit=ms&timezone=auto`;
       const weatherResponse = await fetch(weatherUrl);
       if(!weatherResponse.ok) throw new Error('Weather data request failed.');
       const weather = await weatherResponse.json();
