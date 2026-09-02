@@ -11,6 +11,7 @@ import {
 export type ShelterDesign = {
   length: number; width: number; wallHeight: number; wallThickness: number; roofPitch: number; overhang: number
   windows: number; windowWidth: number; windowHeight: number; shadeDepth: number; ventilation: number; orientation: number
+  insulationThickness: number; ventilationGeometryScale: number
   wallMaterial: string; roofMaterial: string; insulationMaterial: string; floorMaterial: string
 }
 export type ShelterSimulation = {
@@ -26,6 +27,7 @@ export type ShelterCADViewerProps = {
 const defaults: ShelterDesign = {
   length: 6, width: 4, wallHeight: 3, wallThickness: .25, roofPitch: 28, overhang: .8,
   windows: 4, windowWidth: 1.1, windowHeight: 1.2, shadeDepth: 1.2, ventilation: 38, orientation: 0,
+  insulationThickness: .10, ventilationGeometryScale: 1,
   wallMaterial: 'Compressed earth block', roofMaterial: 'Reflective metal sheet',
   insulationMaterial: 'Mineral wool', floorMaterial: 'Concrete slab'
 }
@@ -95,7 +97,7 @@ function PartMaterial({ color, selected, opacity = 1, transparent = false, wiref
   color: string; selected?: boolean; opacity?: number; transparent?: boolean; wireframe?: boolean
 }) {
   return <meshStandardMaterial
-    color={selected ? '#d6b45f' : color} transparent={transparent} opacity={transparent ? .42 : opacity}
+    color={color} transparent={transparent} opacity={transparent ? .42 : opacity}
     wireframe={wireframe} roughness={.72} metalness={.08}
   />
 }
@@ -271,6 +273,7 @@ function ShelterModel({ d, sim, hour, selected, setSelected, overlay }: {
     transparent: false, wireframe: false
   })
   const frontZ = d.width / 2 + .018, backZ = -d.width / 2 - .018
+  const ventScale = clamp(d.ventilationGeometryScale, 1, 1.15)
   const windowCount = Math.min(d.windows, 10)
   const xs = Array.from({ length: windowCount }, (_, i) => windowCount === 1 ? 0 : -d.length / 2 + .8 + (i * Math.max(.4, d.length - 1.6) / (windowCount - 1)))
   
@@ -303,7 +306,7 @@ function ShelterModel({ d, sim, hour, selected, setSelected, overlay }: {
     </mesh>
 
     <mesh position={[0, d.wallHeight + .05, 0]} onClick={() => setSelected('Insulation')}>
-      <boxGeometry args={[d.length - .18, .10, d.width - .18]}/><PartMaterial {...matProps('Insulation', '#b69c72')} opacity={.85}/>
+      <boxGeometry args={[d.length - .18, d.insulationThickness, d.width - .18]}/><PartMaterial {...matProps('Insulation', '#b69c72')} opacity={.85}/>
     </mesh>
 
     {xs.map((x, i) => <WindowUnit key={i} x={x} y={1.55} z={frontZ} width={Math.min(d.windowWidth, 1.5)} height={d.windowHeight} shadeDepth={d.shadeDepth} onSelect={setSelected}/>)}
@@ -315,10 +318,10 @@ function ShelterModel({ d, sim, hour, selected, setSelected, overlay }: {
       <boxGeometry args={[1.0, 2.3, .08]}/><PartMaterial {...matProps('Door', '#55483e')}/>
     </mesh>
     <mesh position={[0, d.wallHeight + roofHeight + .18, 0]} onClick={() => setSelected('Ridge vent')}>
-      <boxGeometry args={[Math.max(1, d.length * .48), .22, .38]}/><PartMaterial {...matProps('Ridge vent', '#496e72')}/>
+      <boxGeometry args={[Math.max(1, d.length * .48 * ventScale), .22, .38 * ventScale]}/><PartMaterial {...matProps('Ridge vent', '#496e72')}/>
     </mesh>
     <mesh position={[0, .95, frontZ + .07]} onClick={() => setSelected('Ventilation opening')}>
-      <boxGeometry args={[Math.max(.5, d.length * .65), .28, .08]}/><PartMaterial {...matProps('Ventilation opening', '#356b73')}/>
+      <boxGeometry args={[Math.max(.5, d.length * .65 * ventScale), .28 * ventScale, .08]}/><PartMaterial {...matProps('Ventilation opening', '#356b73')}/>
     </mesh>
 
     {/* Dimension annotations */}
@@ -433,9 +436,10 @@ export default function ShelterCADViewer({ design, aiDesign, simulation, climate
 
   const user = useMemo(() => mergeDesign(design), [design])
   const ai = useMemo(() => mergeDesign(aiDesign || {
-    ...user, wallThickness: Math.max(.3, user.wallThickness), roofPitch: user.roofPitch + 5,
-    shadeDepth: Math.max(1.8, user.shadeDepth), ventilation: Math.max(38, user.ventilation + 10),
-    windows: Math.max(user.windows, 6)
+    ...user, wallThickness: Math.min(1, user.wallThickness + .05), roofPitch: user.roofPitch + 3,
+    overhang: Math.min(3, user.overhang + .15), shadeDepth: Math.min(3, user.shadeDepth + .2),
+    ventilation: Math.min(100, user.ventilation + 8), insulationThickness: Math.min(.18, user.insulationThickness + .02),
+    ventilationGeometryScale: 1.08
   }), [aiDesign, user])
   const sim = useMemo(() => ({ ...simDefaults, ...(simulation || {}), ...(climate || {}) }), [simulation, climate])
   const aiSim = useMemo(() => ({
@@ -463,7 +467,7 @@ export default function ShelterCADViewer({ design, aiDesign, simulation, climate
     ],
     Wall: [{label:'Material',value:d.wallMaterial},{label:'Thickness',value:`${(d.wallThickness*100).toFixed(0)} cm`},{label:'Conductivity',value:`${material?.k.toFixed(2) || '—'} W/m·K`},{label:'Thermal mass',value:material?.mass || '—'},{label:'Heat flow',value:`${activeSim.wallHeatFlow.toFixed(2)} kW`}],
     Roof: [{label:'Material',value:d.roofMaterial},{label:'Pitch',value:`${d.roofPitch}°`},{label:'Overhang',value:`${d.overhang.toFixed(2)} m`},{label:'Solar absorptance',value:roofInfo ? roofInfo.alpha.toFixed(2) : '—'},{label:'Heat flow',value:`${activeSim.roofHeatFlow.toFixed(2)} kW`}],
-    Insulation: [{label:'Material',value:d.insulationMaterial},{label:'Thickness',value:'10 cm'},{label:'Conductivity',value:'0.040 W/m·K'},{label:'Role',value:'Thermal resistance'}],
+    Insulation: [{label:'Material',value:d.insulationMaterial},{label:'Thickness',value:`${(d.insulationThickness * 100).toFixed(0)} cm`},{label:'Conductivity',value:'0.040 W/m·K'},{label:'Role',value:'Thermal resistance'}],
     Window: [{label:'Count',value:String(d.windows)},{label:'Opening size',value:`${d.windowWidth.toFixed(1)} × ${d.windowHeight.toFixed(1)} m`},{label:'Opening heat flow',value:`${activeSim.openingHeatFlow.toFixed(2)} kW`}],
     Shade: [{label:'Depth',value:`${d.shadeDepth.toFixed(2)} m`},{label:'Role',value:'External solar protection'}],
     'Ridge vent': [{label:'Opening strategy',value:`${d.ventilation}%`},{label:'Role',value:'High-level heat exhaust'}],

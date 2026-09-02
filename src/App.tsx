@@ -7,8 +7,9 @@ import {
   Fan, Home, LocateFixed, MapPin, Maximize2, Rotate3D, Settings2, ShieldCheck,
   SlidersHorizontal, Sparkles, Sun, Thermometer, Users, Wind, X, Building2,
   PawPrint, Info, Gauge, Layers3, Waves, Ruler, CircleGauge, PanelTop, Clock3,
-  Flame, ArrowDownRight, ArrowUpRight, TreePine, Box, WalletCards, Factory
+  Flame, ArrowDownRight, ArrowUpRight, TreePine, Box, WalletCards, Factory, Download
 } from 'lucide-react';
+import { downloadEngineeringReport } from './lib/reportGenerator';
 
 type Target = 'human' | 'livestock';
 type Step = 'project' | 'climate' | 'studio';
@@ -60,6 +61,7 @@ const climatePresets = [
 ];
 
 const money=(n:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Math.round(n));
+const reportNumber=(n:number,digits=1,unit='')=>`${n.toFixed(digits)}${unit ? ` ${unit}` : ''}`;
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 function classifyClimate(temp:number, humidity:number){
   if(temp <= 20) return 'Ladakh High-Altitude';
@@ -199,6 +201,8 @@ function App(){
 
   const [mlLoading, setMlLoading] = useState(false);
   const [mlError, setMlError] = useState('');
+  const [reportStatus, setReportStatus] = useState<'idle' | 'generating' | 'downloaded' | 'error'>('idle');
+  const [reportError, setReportError] = useState('');
   const dragRef=useRef({x:0,y:0,rx:0,ry:0});
   const [i,setI]=useState<Inputs>({
     target:'human', occupants:6, purpose:'Rural home', livestock:'cattle', area:40,
@@ -214,6 +218,13 @@ function App(){
   const ai=useMemo(()=>thermalFor(i,true,realDailySolarEnergy ?? undefined),[i,realDailySolarEnergy]);
   const userCost=useMemo(()=>costFor(i,false),[i]);
   const aiCost=useMemo(()=>costFor(i,true),[i]);
+  const cadDesign=useMemo<CADShelterDesign>(()=>({
+    length: Math.sqrt(i.area * 1.5), width: Math.sqrt(i.area / 1.5), wallHeight: 3, wallThickness: i.wall/100,
+    roofPitch: i.roofPitch, overhang: i.shade, windows: Math.max(0, Math.round(i.area/8)),
+    windowWidth: 1.1, windowHeight: 1.2, shadeDepth: i.shade, ventilation: i.ventilation, orientation: 0,
+    insulationThickness: .10, ventilationGeometryScale: 1,
+    wallMaterial: i.wallMaterial, roofMaterial: i.roofMaterial, insulationMaterial: i.insulationMaterial, floorMaterial: i.floorMaterial
+  }), [i]);
   const update=(patch:Partial<Inputs>)=>setI(v=>({...v,...patch}));
     const runMLPrediction = async () => {
     setMlLoading(true);
@@ -440,6 +451,103 @@ setRealDailySolarEnergy(realSolarEnergyPerM2);
   const projectTitle=i.target==='human'?'Human shelter':'Livestock shelter';
   const inferredClimate=classifyClimate(i.outdoorTemp,i.humidity);
 
+  const generateReport = () => {
+    if (reportStatus === 'generating') return;
+    setReportStatus('generating');
+    setReportError('');
+    try {
+      downloadEngineeringReport({
+        project: {
+          'Shelter purpose': i.purpose,
+          'Occupants': `${i.occupants} ${i.target === 'human' ? 'people' : i.livestock}`,
+          'Area': `${i.area} m²`,
+          'Location': i.location || `${i.city}, ${i.state}`,
+          'Budget': i.budget,
+          'Climate type': i.climateType,
+          'Generated date': new Date().toLocaleDateString('en-GB')
+        },
+        climate: {
+          'Location': i.location || `${i.city}, ${i.state}`,
+          'Climate type': inferredClimate,
+          'Weather source': weatherSource || 'Current climate profile',
+          'Weather status': weatherStatus || 'Not available',
+          'Outdoor temperature': reportNumber(i.outdoorTemp, 1, '°C'),
+          'Relative humidity': reportNumber(i.humidity, 0, '%'),
+          'Wind speed': reportNumber(i.wind, 1, 'km/h'),
+          'Solar radiation': reportNumber(i.solar, 0, 'W/m²'),
+          'Analysis period': `${i.analysisHours} hours`,
+          'Peak sun hours': reportNumber(i.peakSunHours, 1, 'hours'),
+          'Manual/current solar reading': reportNumber(currentSolarRadiation, 0, 'W/m²')
+        },
+        materials: {
+          'Wall material': i.wallMaterial,
+          'Roof material': i.roofMaterial,
+          'Insulation': i.insulationMaterial,
+          'Floor material': i.floorMaterial
+        },
+        userDesign: {
+          'Area': `${i.area} m²`, 'Wall thickness': `${i.wall} cm`, 'Roof pitch': `${i.roofPitch}°`,
+          'Shade depth': `${i.shade.toFixed(1)} m`, 'Ventilation': `${i.ventilation}%`,
+          'Roof type': i.roof, 'Solar efficiency input': `${i.solarEfficiency}%`
+        },
+        aiDesign: {
+          'Area': `${i.area} m²`, 'Wall thickness': `${ai.wall} cm`, 'Roof pitch': `${ai.pitch}°`,
+          'Shade depth': `${ai.shade.toFixed(1)} m`, 'Ventilation': `${ai.vent}%`,
+          'Roof type': i.roof, 'Optimization basis': 'Engineering optimization logic layer'
+        },
+        userAnalysis: {
+          'Peak indoor temperature': user.peak, 'Thermal score': user.score,
+          'Air exchange index': user.air, 'Total heat flow': `${user.totalHeatFlow} kW`,
+          'Solar thermal energy': `${user.absorbedSolar} kWh/day`, 'Roof heat flow': `${user.qRoof} kW`,
+          'Wall heat flow': `${user.qWalls} kW`, 'Opening heat flow': `${user.qOpenings} kW`
+        },
+        aiAnalysis: {
+          'Peak indoor temperature': ai.peak, 'Temperature reduction': `${ai.reduction} °C`,
+          'Thermal score': ai.score, 'Air exchange index': ai.air,
+          'Total heat flow': `${ai.totalHeatFlow} kW`, 'Period heat transfer': `${ai.periodHeat} kWh`,
+          'Incident solar energy': `${ai.solarIncident} kWh`, 'Solar thermal energy': `${ai.absorbedSolar} kWh/day`,
+          'Roof area': `${ai.roofArea.toFixed(1)} m²`, 'Roof heat flow': `${ai.qRoof} kW`,
+          'Wall heat flow': `${ai.qWalls} kW`, 'Opening heat flow': `${ai.qOpenings} kW`
+        },
+        userCost: { Total: userCost.total, Materials: userCost.materials, Labour: userCost.labour },
+        aiCost: { Total: aiCost.total, Materials: aiCost.materials, Labour: aiCost.labour },
+        mlPrediction: mlPrediction ? {
+          'Predicted indoor temperature': reportNumber(mlPrediction.indoor_temperature, 1, '°C'),
+          'Predicted indoor humidity': reportNumber(mlPrediction.indoor_humidity, 1, '%'),
+          'Model type': 'XGBoost thermal and humidity models', 'Prediction context': 'Current project climate inputs'
+        } : null,
+        comparison: [
+          ['Area', `${i.area} m²`, `${i.area} m²`, 'No change'],
+          ['Wall thickness', `${i.wall} cm`, `${ai.wall} cm`, `${(ai.wall - i.wall).toFixed(1)} cm`],
+          ['Roof pitch', `${i.roofPitch}°`, `${ai.pitch}°`, `${(ai.pitch - i.roofPitch).toFixed(1)}°`],
+          ['Shade depth', `${i.shade.toFixed(1)} m`, `${ai.shade.toFixed(1)} m`, `${(ai.shade - i.shade).toFixed(1)} m`],
+          ['Ventilation', `${i.ventilation}%`, `${ai.vent}%`, `${(ai.vent - i.ventilation).toFixed(0)} percentage points`],
+          ['Peak indoor temperature', `${user.peak.toFixed(1)} °C`, `${ai.peak.toFixed(1)} °C`, `${(user.peak - ai.peak).toFixed(1)} °C lower`],
+          ['Thermal score', `${user.score}/100`, `${ai.score}/100`, `${ai.score - user.score} points`],
+          ['Total heat flow', `${user.totalHeatFlow} kW`, `${ai.totalHeatFlow} kW`, `${(user.totalHeatFlow - ai.totalHeatFlow).toFixed(2)} kW`],
+          ['Solar thermal energy', `${user.absorbedSolar} kWh/day`, `${ai.absorbedSolar} kWh/day`, `${(user.absorbedSolar - ai.absorbedSolar).toFixed(1)} kWh/day lower`],
+          ['Estimated cost', money(userCost.total), money(aiCost.total), money(aiCost.total - userCost.total)]
+        ],
+        hourlyTemperatures: hourly,
+        dataSource: realHourlyTemps.length === 24 ? 'Live weather data (Open-Meteo)' : weatherSource || 'Fallback/synthetic diurnal profile',
+        modelInformation: {
+          'Prediction status': mlPrediction ? 'Available' : 'Not available',
+          'Model type': mlPrediction ? 'XGBoost thermal and humidity models' : 'Not available',
+          'Model targets': 'Indoor temperature and indoor humidity',
+          'Training locations': 'Not exposed by the application',
+          'CAD generation': 'Parametric engineering logic; ML is not used to generate CAD geometry',
+          'Software version': 'AASHRAYA GANITH 1.0'
+        }
+      });
+      setReportStatus('downloaded');
+      window.setTimeout(() => setReportStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Engineering report generation error:', error);
+      setReportError('Unable to generate the report. Please try again.');
+      setReportStatus('error');
+    }
+  };
+
   useEffect(()=>{
     setMlPrediction(null);
     setMlError('');
@@ -572,18 +680,12 @@ setRealDailySolarEnergy(realSolarEnergyPerM2);
               <div className="cadEmbedBadge"><b>THERMAL GAP</b><strong>{Math.max(0,ai.score-user.score)}</strong><span>AI score advantage</span></div>
             </div>
             <ShelterCADViewer
-              design={{
-                length: Math.sqrt(i.area * 1.5), width: Math.sqrt(i.area / 1.5), wallHeight: 3, wallThickness: i.wall/100,
-                roofPitch: i.roofPitch, overhang: i.shade, windows: Math.max(0, Math.round(i.area/8)),
-                windowWidth: 1.1, windowHeight: 1.2, shadeDepth: i.shade, ventilation: i.ventilation, orientation: 0,
-                wallMaterial: i.wallMaterial, roofMaterial: i.roofMaterial, insulationMaterial: i.insulationMaterial, floorMaterial: i.floorMaterial
-              } as CADShelterDesign}
+              design={cadDesign}
               aiDesign={{
-                length: Math.sqrt(Math.max(i.area, 8) * 1.5), width: Math.sqrt(Math.max(i.area, 8) / 1.5), wallHeight: 3.1, wallThickness: ai.wall/100,
-                roofPitch: ai.pitch, overhang: Math.max(i.shade, .9), windows: Math.max(4, Math.round(i.area/7)),
-                windowWidth: 1.1, windowHeight: 1.2, shadeDepth: ai.shade, ventilation: ai.vent, orientation: 0,
-                wallMaterial: i.wallMaterial, roofMaterial: i.roofMaterial, insulationMaterial: i.insulationMaterial, floorMaterial: i.floorMaterial
-              } as CADShelterDesign}
+                ...cadDesign, wallThickness: ai.wall/100, roofPitch: ai.pitch,
+                overhang: Math.min(3, i.shade + .15), shadeDepth: ai.shade,
+                ventilation: ai.vent, insulationThickness: .12, ventilationGeometryScale: 1.08
+              }}
               simulation={{
                 outdoorTemp: i.outdoorTemp, indoorTemp: user.peak, solarRadiation: i.solar, solarEnergy: user.absorbedSolar,
                 roofHeatFlow: user.qRoof, wallHeatFlow: user.qWalls, openingHeatFlow: user.qOpenings, windSpeed: i.wind, humidity: i.humidity,
@@ -682,7 +784,14 @@ setRealDailySolarEnergy(realSolarEnergyPerM2);
               ['Roof pitch',`${ai.pitch}° for solar response`],['Shade',`${ai.shade.toFixed(1)} m protected edge`],['Ventilation',`${ai.vent}% opening strategy`],['Thermal gain',`${(user.absorbedSolar-ai.absorbedSolar).toFixed(1)} kWh lower estimate`]
             ]}/>
           </div>
-          <div className="disclaimer"><Info size={15}/> Preliminary software-model decision support. Values are estimates for the prototype and require engineering/material validation before construction.</div>
+          <div className="reportDownloadSection">
+            <p>Generate a complete engineering report from the current analysis</p>
+            <button className="reportDownloadButton" onClick={generateReport} disabled={reportStatus === 'generating'}>
+              <Download size={22}/>
+              <span>{reportStatus === 'generating' ? 'Generating Engineering Report...' : reportStatus === 'downloaded' ? 'Report Downloaded' : 'DOWNLOAD ENGINEERING REPORT'}</span>
+            </button>
+            {reportStatus === 'error' && <small className="reportError"><Info size={14}/>{reportError}</small>}
+          </div>
         </motion.section>}
       </AnimatePresence>
     </main>
@@ -1019,7 +1128,6 @@ function HeatFlowBars({user,ai}:{user:any;ai:any}){
 
 function AnalysisSide({input,user,ai,mlPrediction,mlLoading,mlError}:{input:Inputs;user:any;ai:any;mlPrediction:{indoor_temperature:number;indoor_humidity:number}|null;mlLoading:boolean;mlError:string}){
   return <div className="analysisSide">
-    <div className="analysisLegend"><span><i className="cool"/>AI / protected</span><span><i className="warm"/>Moderate</span><span><i className="hot"/>Heat load</span></div>
     <div className="analysisStat"><Thermometer/><div><b>Peak indoor temperature</b><strong>{input.outdoorTemp}°C → {ai.peak.toFixed(1)}°C</strong><small>AI reduction {ai.reduction.toFixed(1)}°C from the ambient peak.</small></div></div>
     <div className="analysisStat"><Sun/><div><b>Solar thermal energy</b><strong>{ai.absorbedSolar.toFixed(1)} kWh/day</strong><small>Estimated absorbed heat after passive roof/shading protection.</small></div></div>
     <div className="analysisStat"><Flame/><div><b>Heat flow</b><strong>{ai.totalHeatFlow.toFixed(2)} kW</strong><small>{ai.periodHeat.toFixed(1)} kWh transferred during the selected period.</small></div></div>

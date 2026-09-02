@@ -189,6 +189,20 @@ button:focus-visible,input:focus-visible,select:focus-visible{box-shadow:0 0 0 3
 .requiredLauncher b em{display:inline-block}
 .modal .primaryBtn:disabled{opacity:.42;cursor:not-allowed;filter:saturate(.5);box-shadow:none}
 
+.reportDownloadSection{margin:30px 0 8px;padding:28px 18px 8px;border-top:1px solid var(--border);display:flex;flex-direction:column;align-items:center;text-align:center}
+.reportDownloadSection p{margin:0 0 14px;color:var(--text-secondary);font-size:14px}
+.reportDownloadButton{position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:12px;width:min(620px,100%);min-height:68px;padding:17px 28px;border:1px solid var(--primary);border-radius:12px;background:var(--primary);color:#fff;font-size:16px;font-weight:800;letter-spacing:.06em;box-shadow:0 10px 25px rgba(8,127,106,.20);transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
+.reportDownloadButton:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 28%,rgba(255,255,255,.22) 48%,transparent 68%);transform:translateX(-120%);transition:transform .7s ease}
+.reportDownloadButton:hover{transform:translateY(-3px);background:var(--primary-dark);box-shadow:0 16px 32px rgba(8,127,106,.28)}
+.reportDownloadButton:hover:before{transform:translateX(120%)}
+.reportDownloadButton:active{transform:translateY(1px) scale(.985);box-shadow:0 6px 14px rgba(8,127,106,.18)}
+.reportDownloadButton:disabled{cursor:wait;opacity:.78;transform:none;box-shadow:none}
+.reportDownloadButton svg{flex:none}
+.reportError{display:flex;align-items:center;gap:6px;margin-top:12px;color:var(--thermal);font-size:13px}
+.analysisSide{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+@media(max-width:600px){.reportDownloadSection{padding-left:0;padding-right:0}.reportDownloadButton{font-size:12px;letter-spacing:.04em;padding-left:14px;padding-right:14px}.reportDownloadButton svg{width:19px}}
+@media(prefers-reduced-motion:reduce){.reportDownloadButton,.reportDownloadButton:before{transition:none}.reportDownloadButton:hover{transform:none}.reportDownloadButton:hover:before{transform:none}}
+
 /* Kill browser-native white form/button rendering inside the material library */
 .materialsModal button.materialOption,
 .materialsModal button.materialOption:hover,
@@ -345,6 +359,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{box-shadow:0 0 0 3
 footer:not(.cad-ag-footer){background:rgba(255,255,255,.96)!important;border-top:1px solid var(--border)!important;color:var(--text-secondary)!important;box-shadow:0 -2px 10px rgba(31,41,38,.06)!important}footer:not(.cad-ag-footer) span{color:var(--text-secondary)!important}
 
 @media(max-width:700px){.topbar{height:auto;min-height:68px;padding:12px 16px}.projectPage{padding:44px 18px 50px}.footerBar{font-size:10px}}
+
+.analysisSide{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:22px!important;box-shadow:var(--shadow)!important}
+.analysisSide .analysisStat:last-child{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
 
 /* Explicit light surfaces for every interactive analysis widget */
 .modeBar {
